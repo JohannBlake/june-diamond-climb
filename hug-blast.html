@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Operation Hug Blast</title>
+<style>
+:root{--bg:#1b0b2e;--ink:#fff;--pink:#ff4fa3;--teal:#27e0d0;--panel:rgba(20,5,40,.78)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#12061f}}
+:root[data-theme="dark"]{--bg:#12061f}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{display:block;position:fixed;inset:0}
+#hud{position:fixed;top:0;left:0;right:0;padding:10px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between;font-weight:700;font-size:14px;pointer-events:none}
+#bar{flex:1;max-width:340px;height:18px;border-radius:9px;background:rgba(255,255,255,.15);overflow:hidden;position:relative}
+#fill{height:100%;width:0;background:linear-gradient(90deg,#f33,#fa0,#ff0,#3d3,#3af,#a5f)}
+#bar span{position:absolute;inset:0;text-align:center;font-size:11px;line-height:18px;text-shadow:0 1px 2px #000}
+.tag{position:fixed;transform:translate(-50%,-100%);pointer-events:none;font-weight:800;font-size:13px;text-shadow:0 1px 3px #000;white-space:nowrap;text-align:center}
+.say{display:block;background:#fff;color:#222;border-radius:12px;padding:4px 9px;font-size:12px;margin-bottom:3px;text-shadow:none;max-width:200px;white-space:normal}
+#msg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(10,0,25,.6)}
+#card{background:var(--panel);border:2px solid var(--pink);border-radius:20px;padding:22px;max-width:440px;text-align:center;line-height:1.45}
+#card h1{margin:0 0 8px;font-size:26px;background:linear-gradient(90deg,#ff5,#f5a,#5ef);-webkit-background-clip:text;background-clip:text;color:transparent}
+#card button{margin-top:14px;font:inherit;font-weight:800;font-size:18px;padding:12px 28px;border-radius:30px;border:0;background:var(--pink);color:#fff;cursor:pointer}
+#card small{opacity:.8}
+</style>
+</head>
+<body>
+<div id="hud"><span id="wave">Wave 1</span><div id="bar"><div id="fill"></div><span id="barT">LONGING 0%</span></div><span id="left">Beige: 0</span></div>
+<div id="msg"><div id="card">
+<h1>OPERATION HUG BLAST</h1>
+<p>The <b>Beige Blobs</b> are draining all fabulousness from the world. Only one weapon can stop them: <b>Johann and Andre hugging dramatically.</b></p>
+<p>1. Run <b>apart</b> to build LONGING 💔<br>2. Lure the blobs close<br>3. Run back into each other's arms 💥🌈<br>Hugged blobs turn into flamingos.</p>
+<p><small>Johann: <b>WASD</b> / left half of screen<br>Andre: <b>Arrows</b> / right half of screen</small></p>
+<button id="go">Begin the mission 💅</button>
+</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const R=Math.random, $=id=>document.getElementById(id);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x1b0b2e); scene.fog=new THREE.Fog(0x1b0b2e,35,70);
+const cam=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,200);
+const ren=new THREE.WebGLRenderer({antialias:true}); ren.setPixelRatio(Math.min(devicePixelRatio,2)); ren.setSize(innerWidth,innerHeight); document.body.prepend(ren.domElement);
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight)});
+scene.add(new THREE.HemisphereLight(0xffddff,0x332255,1.0));
+const sun=new THREE.DirectionalLight(0xffffff,.7); sun.position.set(5,12,6); scene.add(sun);
+const A=16; // arena half size
+// disco floor
+const tiles=[];
+for(let x=-8;x<8;x++)for(let z=-8;z<8;z++){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(1.9,.2,1.9),new THREE.MeshStandardMaterial({color:0x2a1846}));
+  m.position.set(x*2+1,-.1,z*2+1); scene.add(m); tiles.push(m);
+}
+const mat=c=>new THREE.MeshStandardMaterial({color:c,roughness:.5});
+function dude(color,hat,stache){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.5,.65,1.3,16),mat(color)); body.position.y=.75; g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.45,16,12),mat(0xffd2b0)); head.position.y=1.75; g.add(head);
+  for(const s of[-1,1]){const e=new THREE.Mesh(new THREE.SphereGeometry(.08,8,8),mat(0x111111)); e.position.set(s*.17,1.82,.4); g.add(e);
+    const arm=new THREE.Mesh(new THREE.CylinderGeometry(.11,.11,.8,8),mat(color)); arm.position.set(s*.68,.95,0); arm.userData.s=s; g.add(arm); (g.userData.arms=g.userData.arms||[]).push(arm);}
+  const h=new THREE.Mesh(new THREE.ConeGeometry(.3,.7,12),mat(hat)); h.position.y=2.45; g.add(h);
+  if(stache){const m=new THREE.Mesh(new THREE.BoxGeometry(.4,.08,.08),mat(0x4a2a10)); m.position.set(0,1.64,.43); g.add(m);}
+  else{const gl=new THREE.Mesh(new THREE.BoxGeometry(.6,.14,.06),mat(0xff2a7a)); gl.position.set(0,1.83,.44); g.add(gl);}
+  g.userData.body=body; g.userData.color=color; scene.add(g); return g;
+}
+const P=[
+ {name:'Johann',m:dude(0xff4fa3,0xffe14a,true),stun:0,say:'',sayT:0,keys:['KeyW','KeyS','KeyA','KeyD'],tv:[0,0]},
+ {name:'Andre',m:dude(0x27e0d0,0xb46bff,false),stun:0,say:'',sayT:0,keys:['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'],tv:[0,0]}
+];
+P.forEach(p=>{p.el=document.createElement('div');p.el.className='tag';document.body.appendChild(p.el)});
+// boa between them
+const boaG=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+const boa=new THREE.Line(boaG,new THREE.LineBasicMaterial({color:0xff7ad1})); scene.add(boa);
+// disco ball
+const ball=new THREE.Mesh(new THREE.IcosahedronGeometry(1.6,1),new THREE.MeshStandardMaterial({color:0xffffff,metalness:.9,roughness:.15,flatShading:true})); ball.position.y=30; scene.add(ball);
+
+const LINES={
+ apart:['I miss you already!','Come baaack!','This is the longest 4 seconds of my life','My arms feel so empty','Who will hold my drink?!'],
+ hug:['Oh. Hello. 😳','You smell like victory.','No homo. Okay, a little homo.','This is strictly tactical.','Hold me, it is for the mission.','We tell no one. We tell everyone.'],
+ stun:['I suddenly love spreadsheets...','Khakis... are... fine...','Let us circle back on that.','I want a sensible sedan.','Beige is a colour too...'],
+ weak:['That was a handshake, not a hug!','More longing first, darling.']
+};
+const pick=a=>a[Math.floor(R()*a.length)];
+function say(p,t,d=2.2){p.say=t;p.sayT=d}
+
+let blobs=[],rings=[],wave=0,longing=0,running=false,hugCd=0,flash=0,won=false,t=0,apartT=0;
+function spawnWave(){
+  wave++; const n=3+wave*3;
+  for(let i=0;i<n;i++){
+    const g=new THREE.Group();
+    const b=new THREE.Mesh(new THREE.BoxGeometry(1.1,1.1,1.1),mat(0xd8c9a8)); b.position.y=.55; g.add(b);
+    for(const s of[-1,1]){const e=new THREE.Mesh(new THREE.BoxGeometry(.3,.07,.05),mat(0x222222)); e.position.set(s*.25,.8,.56); e.rotation.z=-s*.4; g.add(e);}
+    const tie=new THREE.Mesh(new THREE.BoxGeometry(.14,.5,.05),mat(0x666666)); tie.position.set(0,.35,.57); g.add(tie);
+    const a=R()*6.28; g.position.set(Math.cos(a)*A*.95,0,Math.sin(a)*A*.95);
+    scene.add(g); blobs.push({m:g,box:b,gay:false,ph:R()*6});
+  }
+  $('wave').textContent='Wave '+wave+'/3';
+}
+function convert(b){
+  b.gay=true; b.m.clear();
+  const pk=mat(0xff6fb5);
+  const leg=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,1,6),pk); leg.position.y=.5; b.m.add(leg);
+  const bd=new THREE.Mesh(new THREE.SphereGeometry(.45,12,10),pk); bd.position.y=1.2; bd.scale.set(1,.8,1.3); b.m.add(bd);
+  const nk=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.8,6),pk); nk.position.set(0,1.75,.4); nk.rotation.x=.3; b.m.add(nk);
+  const hd=new THREE.Mesh(new THREE.SphereGeometry(.16,8,8),pk); hd.position.set(0,2.15,.55); b.m.add(hd);
+  const bk=new THREE.Mesh(new THREE.ConeGeometry(.07,.25,6),mat(0x222222)); bk.position.set(0,2.1,.75); bk.rotation.x=1.9; b.m.add(bk);
+}
+let AC; function beep(f,d=.15,type='sine',v=.12){try{AC=AC||new (window.AudioContext||webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(v,AC.currentTime);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+d);o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+d)}catch(e){}}
+function hug(mid){
+  if(longing<25){ if(hugCd<=0){say(P[0],pick(LINES.weak));hugCd=1.5} return; }
+  const rad=3+longing/11;
+  const r=new THREE.Mesh(new THREE.TorusGeometry(1,.18,8,48),new THREE.MeshBasicMaterial({color:0xff55aa,transparent:true})); r.rotation.x=Math.PI/2; r.position.copy(mid); r.position.y=.6; scene.add(r); rings.push({m:r,max:rad,s:.5});
+  let n=0; blobs.forEach(b=>{if(!b.gay&&b.m.position.distanceTo(mid)<rad){convert(b);n++}});
+  say(P[0],pick(LINES.hug),3); setTimeout(()=>say(P[1],n?('+'+n+' flamingo'+(n>1?'s':'')+'! 🦩'):pick(LINES.hug),3),500);
+  [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.25,'triangle'),i*90));
+  longing=0; hugCd=1.2; flash=1;
+}
+function end(title,body,btn){running=false;$('card').innerHTML='<h1>'+title+'</h1><p>'+body+'</p><button id="go">'+btn+'</button>';$('msg').style.display='flex';$('go').onclick=start}
+function start(){
+  blobs.forEach(b=>scene.remove(b.m)); blobs=[]; wave=0; longing=0; won=false; ball.position.y=30;
+  P[0].m.position.set(-2,0,0); P[1].m.position.set(2,0,0); P.forEach(p=>{p.stun=0;p.sayT=0});
+  spawnWave(); running=true; $('msg').style.display='none'; beep(440,.1);
+  say(P[0],'Ready, Andre?'); setTimeout(()=>say(P[1],'Born ready. And fabulous.'),900);
+}
+$('go').onclick=start;
+const K={}; addEventListener('keydown',e=>{K[e.code]=1;if(e.code.startsWith('Arrow'))e.preventDefault()}); addEventListener('keyup',e=>K[e.code]=0);
+const T={};
+addEventListener('touchstart',e=>{for(const c of e.changedTouches)T[c.identifier]={x:c.clientX,y:c.clientY,p:c.clientX<innerWidth/2?0:1}},{passive:true});
+addEventListener('touchmove',e=>{for(const c of e.changedTouches){const s=T[c.identifier];if(!s)continue;let dx=c.clientX-s.x,dy=c.clientY-s.y;const l=Math.hypot(dx,dy);if(l>45){dx*=45/l;dy*=45/l}P[s.p].tv=[dx/45,dy/45]}},{passive:true});
+const tend=e=>{for(const c of e.changedTouches){const s=T[c.identifier];if(s){P[s.p].tv=[0,0];delete T[c.identifier]}}};
+addEventListener('touchend',tend);addEventListener('touchcancel',tend);
+
+const v=new THREE.Vector3(), mid=new THREE.Vector3(); let last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min(.05,(now-last)/1000); last=now; t+=dt;
+  const a=P[0].m.position,b=P[1].m.position; const d=a.distanceTo(b); mid.addVectors(a,b).multiplyScalar(.5);
+  if(running){
+    P.forEach(p=>{
+      let x=(K[p.keys[3]]?1:0)-(K[p.keys[2]]?1:0)+p.tv[0], z=(K[p.keys[1]]?1:0)-(K[p.keys[0]]?1:0)+p.tv[1];
+      const l=Math.hypot(x,z); if(l>1){x/=l;z/=l}
+      if(p.stun>0){p.stun-=dt;x=z=0;p.m.rotation.z=Math.sin(t*20)*.15;if(p.stun<=0){p.m.userData.body.material.color.setHex(p.m.userData.color);p.m.rotation.z=0}}
+      const pos=p.m.position; pos.x=Math.max(-A,Math.min(A,pos.x+x*7.5*dt)); pos.z=Math.max(-A,Math.min(A,pos.z+z*7.5*dt));
+      if(l>.1){p.m.rotation.y=Math.atan2(x,z);pos.y=Math.abs(Math.sin(t*14))*.18}else pos.y=0;
+      const open=d<4&&longing>25?1.3:.1+longing/100; p.m.userData.arms.forEach(ar=>ar.rotation.z=ar.userData.s*(open+Math.sin(t*9)*.1));
+    });
+    if(d>6){longing=Math.min(100,longing+dt*(22+d));apartT+=dt;if(apartT>3.5){apartT=0;say(P[R()<.5?0:1],pick(LINES.apart))}}
+    hugCd-=dt;
+    if(d<1.5&&P[0].stun<=0&&P[1].stun<=0&&hugCd<=0)hug(mid.clone());
+    let left=0;
+    blobs.forEach(bl=>{
+      const bp=bl.m.position;
+      if(bl.gay){bp.y=Math.abs(Math.sin(t*5+bl.ph))*.5;bl.m.rotation.y+=dt*3;return}
+      left++;
+      let tg=null,td=1e9; P.forEach(p=>{const q=bp.distanceTo(p.m.position);if(p.stun<=0&&q<td){td=q;tg=p}});
+      if(tg){v.subVectors(tg.m.position,bp);v.y=0;v.normalize();bp.addScaledVector(v,(1.7+wave*.45)*dt);bl.m.rotation.y=Math.atan2(v.x,v.z);
+        if(td<1.1){tg.stun=1.8;tg.m.userData.body.material.color.setHex(0xd8c9a8);say(tg,pick(LINES.stun));beep(110,.4,'sawtooth');longing=Math.max(0,longing-20);bp.addScaledVector(v,-3)}}
+      bl.box.scale.y=1+Math.sin(t*6+bl.ph)*.08;
+    });
+    $('left').textContent='Beige: '+left;
+    if(left===0){ if(wave<3){spawnWave();say(P[1],'More of them?! How dull!')} else {won=true;running=false;
+      [523,587,659,784,880,1047,1319].forEach((f,i)=>setTimeout(()=>beep(f,.3,'square',.08),i*120));
+      setTimeout(()=>end('MISSION COMPLETE 🌈','The world is 100% more fabulous. The flamingos have unionised. Johann and Andre agreed the hugging was "purely professional" and then hugged for another 40 minutes.','Hug again'),3500)}}
+  }
+  if(won){ball.position.y+=(7-ball.position.y)*dt*2;P.forEach((p,i)=>{p.m.position.y=Math.abs(Math.sin(t*8+i))*.8;p.m.rotation.y+=dt*6})}
+  ball.rotation.y+=dt;
+  rings=rings.filter(r=>{r.s+=dt*r.max*2.2;r.m.scale.set(r.s,r.s,1);r.m.material.opacity=1-r.s/r.max;r.m.material.color.setHSL((t*2)%1,1,.6);if(r.s>=r.max){scene.remove(r.m);return false}return true});
+  flash=Math.max(0,flash-dt);
+  const party=won?1:flash;
+  tiles.forEach((m,i)=>{const h=((i*.07+t*.15)%1);m.material.color.setHSL(h,.75,.12+party*.4+ (longing/100)*.1*(Math.sin(t*6+i)>.6?1:0))});
+  boaG.setFromPoints([a.clone().setY(1),mid.clone().setY(1-Math.min(.8,d*.06)),b.clone().setY(1)]);
+  boa.material.color.setHSL((t*.5)%1,1,.7);
+  const z=Math.max(15,d*.85+11); cam.position.lerp(v.set(mid.x,z*1.05,mid.z+z*.8),.08); cam.lookAt(mid.x,0,mid.z);
+  $('fill').style.width=longing+'%'; $('barT').textContent=longing>=100?'MAXIMUM LONGING — HUG NOW!':'LONGING '+Math.round(longing)+'%';
+  P.forEach(p=>{p.sayT-=dt;v.copy(p.m.position);v.y+=3;v.project(cam);p.el.style.left=(v.x*.5+.5)*innerWidth+'px';p.el.style.top=(-v.y*.5+.5)*innerHeight+'px';
+    p.el.innerHTML=(p.sayT>0?'<span class="say">'+p.say+'</span>':'')+p.name});
+  ren.render(scene,cam);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
